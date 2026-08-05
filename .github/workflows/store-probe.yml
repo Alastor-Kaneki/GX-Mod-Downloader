@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   publish:
+    if: ${{ hashFiles('_bootstrap/payload.part00') != '' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,7 +21,7 @@ jobs:
           base64 --decode /tmp/gxproject.b64 > /tmp/gxproject.tar.gz
           tar -xzf /tmp/gxproject.tar.gz -C "$GITHUB_WORKSPACE"
           rm -rf _bootstrap
-          rm -f .github/workflows/store-probe.yml
+          rm -f .github/workflows/build.yml
       - name: Commit application source
         shell: bash
         run: |
