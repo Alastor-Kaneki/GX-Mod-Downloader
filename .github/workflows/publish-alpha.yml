@@ -1,0 +1,71 @@
+name: Publish v0.1.0 Alpha
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-alpha.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN_ID: "30980097321"
+      BUILD_SHA: "dd06186f674695fc6a12bbdabc55220f4dd5a3a7"
+      TAG: "v0.1.0-alpha"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download verified build artifacts
+        run: |
+          mkdir -p /tmp/artifacts dist
+          gh run download "$BUILD_RUN_ID" --repo "$GITHUB_REPOSITORY" --dir /tmp/artifacts
+          cp /tmp/artifacts/gx-mod-downloader-android-debug/composeApp-debug.apk \
+            dist/GX-Mod-Downloader-0.1.0-alpha-android-debug.apk
+          cp /tmp/artifacts/gx-mod-downloader-linux/deb/gxmoddownloader_0.1.0_amd64.deb \
+            dist/GX-Mod-Downloader-0.1.0-linux-amd64.deb
+          cp /tmp/artifacts/gx-mod-downloader-linux/rpm/gxmoddownloader-0.1.0-1.x86_64.rpm \
+            dist/GX-Mod-Downloader-0.1.0-linux-x86_64.rpm
+          cp /tmp/artifacts/gx-mod-downloader-windows/exe/GXModDownloader-0.1.0.exe \
+            dist/GX-Mod-Downloader-0.1.0-windows-x64.exe
+          cp /tmp/artifacts/gx-mod-downloader-windows/msi/GXModDownloader-0.1.0.msi \
+            dist/GX-Mod-Downloader-0.1.0-windows-x64.msi
+          (cd dist && sha256sum * > SHA256SUMS.txt)
+      - name: Publish prerelease
+        run: |
+          cat > /tmp/release-notes.md <<'EOF'
+          First functional native alpha of GX Mod Downloader.
+
+          Included:
+          - Android debug APK
+          - Windows EXE and MSI installers
+          - Linux DEB and RPM packages
+          - SHA-256 checksums
+
+          Features:
+          - Native GX Store search, browsing, sorting, filters, and pagination
+          - GX-inspired adaptive interface
+          - Native package downloads on Android, Windows, and Linux
+          - Official GX content-host allowlist
+          - CRX2/CRX3 header and embedded ZIP validation
+          - Download history and mod detail views
+
+          Important: the Android APK is debug-signed for alpha testing. A permanent private repository signing identity will replace it before update-compatible production releases. This app downloads packages only and never silently installs or enables GX mods.
+          EOF
+
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --prerelease \
+              --title "GX Mod Downloader 0.1.0 Alpha" \
+              --notes-file /tmp/release-notes.md
+          else
+            gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+              --target "$BUILD_SHA" --prerelease \
+              --title "GX Mod Downloader 0.1.0 Alpha" \
+              --notes-file /tmp/release-notes.md
+          fi
