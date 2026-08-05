@@ -1,4 +1,4 @@
-name: GX Store API Probe
+name: Publish Initial App
 
 on:
   push:
@@ -6,34 +6,26 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  probe:
+  publish:
     runs-on: ubuntu-latest
     steps:
-      - name: Capture GX Store API schema
-        shell: python
+      - uses: actions/checkout@v4
+      - name: Expand reviewed project source
+        shell: bash
         run: |
-          import json
-          import urllib.request
-
-          headers = {
-              "Accept": "application/json",
-              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/145 Safari/537.36"
-          }
-
-          urls = {
-              "LISTING": "https://api.gx.me/store/v3/mods?page=0&pageSize=2&sort=total-downloads-desc&tagAlias=desktop",
-              "DETAIL": "https://api.gx.me/store/v3/mods/nsxjip",
-              "TAGS": "https://api.gx.me/store/tags?page=0&pageSize=10&rootOnly=true&locale=en",
-          }
-
-          for label, url in urls.items():
-              print(f"===== {label} {url} =====")
-              request = urllib.request.Request(url, headers=headers)
-              with urllib.request.urlopen(request, timeout=30) as response:
-                  payload = json.load(response)
-              rendered = json.dumps(payload, indent=2, ensure_ascii=False)
-              print(rendered[:60000])
-              print(f"===== END {label}; JSON_CHARS={len(rendered)} =====")
+          cat _bootstrap/payload.part* > /tmp/gxproject.b64
+          base64 --decode /tmp/gxproject.b64 > /tmp/gxproject.tar.gz
+          tar -xzf /tmp/gxproject.tar.gz -C "$GITHUB_WORKSPACE"
+          rm -rf _bootstrap
+          rm -f .github/workflows/store-probe.yml
+      - name: Commit application source
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git commit -m "Build native GX Mod Downloader alpha"
+          git push origin HEAD:main
