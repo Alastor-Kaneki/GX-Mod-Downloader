@@ -18,6 +18,10 @@ object GxNetwork {
         ignoreUnknownKeys = true
         isLenient = true
         explicitNulls = false
+        // GX Store occasionally returns explicit nulls for optional profile/media fields.
+        // Most DTO properties have safe defaults, so coerce those nulls to defaults rather
+        // than failing the entire catalog response because one mod has incomplete metadata.
+        coerceInputValues = true
     }
 
     val client = HttpClient {
