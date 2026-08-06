@@ -32,10 +32,21 @@ jobs:
           gradle-version: '8.9'
       - name: Build APK
         run: gradle -p android --stacktrace --no-daemon :app:assembleDebug
-      - name: Stage APK
+      - name: Verify and stage APK
         run: |
+          set -euxo pipefail
+          APK=android/app/build/outputs/apk/debug/app-debug.apk
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          test -s "$APK"
+          "$AAPT" dump badging "$APK" | tee apk-badging.txt
+          grep -F "package: name='dev.alastorkaneki.gxmods' versionCode='3' versionName='0.2.1-alpha'" apk-badging.txt
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml | tee manifest-tree.txt
+          grep -F 'A: android:name(0x01010003)="dev.alastorkaneki.gxmods.icon.basic_classic"' manifest-tree.txt
+          grep -F 'A: android:targetActivity(0x01010202)="dev.alastorkaneki.gxmods.MainActivity"' manifest-tree.txt
+          grep -F 'A: android:name(0x01010003)="android.intent.action.MAIN"' manifest-tree.txt
+          grep -F 'A: android:name(0x01010003)="android.intent.category.LAUNCHER"' manifest-tree.txt
           mkdir -p dist
-          cp android/app/build/outputs/apk/debug/app-debug.apk dist/GX-Mod-Downloader-0.2.0-alpha-android-debug.apk
+          cp "$APK" dist/GX-Mod-Downloader-0.2.1-alpha-android-debug.apk
           sha256sum dist/*
       - uses: actions/upload-artifact@v4
         with:
@@ -66,7 +77,7 @@ jobs:
           Copy-Item shared/theme-catalog.js dist/windows-publish/opera-extension/theme-catalog.js -Force
           Copy-Item shared/wrapper-bootstrap.js dist/windows-publish/opera-extension/wrapper-bootstrap.js -Force
           Copy-Item shared/gx-archive-downloader.user.js dist/windows-publish/opera-extension/gx-archive-downloader.user.js -Force
-          Compress-Archive -Path dist/windows-publish/* -DestinationPath dist/GX-Mod-Downloader-0.2.0-windows-x64-portable.zip -Force
+          Compress-Archive -Path dist/windows-publish/* -DestinationPath dist/GX-Mod-Downloader-0.2.1-windows-x64-portable.zip -Force
       - name: Build Windows setup EXE
         shell: pwsh
         run: |
@@ -75,14 +86,14 @@ jobs:
       - name: Stage Windows files
         shell: pwsh
         run: |
-          Get-FileHash dist/GX-Mod-Downloader-0.2.0-windows-x64-setup.exe -Algorithm SHA256
-          Get-FileHash dist/GX-Mod-Downloader-0.2.0-windows-x64-portable.zip -Algorithm SHA256
+          Get-FileHash dist/GX-Mod-Downloader-0.2.1-windows-x64-setup.exe -Algorithm SHA256
+          Get-FileHash dist/GX-Mod-Downloader-0.2.1-windows-x64-portable.zip -Algorithm SHA256
       - uses: actions/upload-artifact@v4
         with:
           name: windows
           path: |
-            dist/GX-Mod-Downloader-0.2.0-windows-x64-setup.exe
-            dist/GX-Mod-Downloader-0.2.0-windows-x64-portable.zip
+            dist/GX-Mod-Downloader-0.2.1-windows-x64-setup.exe
+            dist/GX-Mod-Downloader-0.2.1-windows-x64-portable.zip
           if-no-files-found: error
 
   linux:
@@ -113,25 +124,25 @@ jobs:
           wget -q https://raw.githubusercontent.com/linuxdeploy/linuxdeploy-plugin-gtk/master/linuxdeploy-plugin-gtk.sh
           chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk.sh
           export DEPLOY_GTK_VERSION=3
-          export LINUXDEPLOY_OUTPUT_VERSION=0.2.0
-          export OUTPUT=GX-Mod-Downloader-0.2.0-linux-x86_64.AppImage
+          export LINUXDEPLOY_OUTPUT_VERSION=0.2.1
+          export OUTPUT=GX-Mod-Downloader-0.2.1-linux-x86_64.AppImage
           APPIMAGE_EXTRACT_AND_RUN=1 ./linuxdeploy-x86_64.AppImage --appdir AppDir --plugin gtk --output appimage
           test -f "$OUTPUT"
           chmod +x "$OUTPUT"
           ./$OUTPUT --appimage-extract >/dev/null
           test -x squashfs-root/AppRun
           rm -rf squashfs-root linuxdeploy-x86_64.AppImage linuxdeploy-plugin-gtk.sh linux-build AppDir
-          sha256sum GX-Mod-Downloader-0.2.0-linux-x86_64.AppImage GX-Mod-Downloader-0.2.0-linux-amd64.deb
+          sha256sum GX-Mod-Downloader-0.2.1-linux-x86_64.AppImage GX-Mod-Downloader-0.2.1-linux-amd64.deb
       - uses: actions/upload-artifact@v4
         with:
           name: linux
           path: |
-            dist/GX-Mod-Downloader-0.2.0-linux-x86_64.AppImage
-            dist/GX-Mod-Downloader-0.2.0-linux-amd64.deb
+            dist/GX-Mod-Downloader-0.2.1-linux-x86_64.AppImage
+            dist/GX-Mod-Downloader-0.2.1-linux-amd64.deb
           if-no-files-found: error
 
   release:
-    name: Update alpha release
+    name: Publish 0.2.1 alpha release
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: [android, windows, linux]
     runs-on: ubuntu-latest
@@ -149,23 +160,27 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG=v0.2.0-alpha
+          TAG=v0.2.1-alpha
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "GX Mod Downloader 0.2.0 Alpha" --prerelease --notes-file - <<'NOTES'
-          Rebuilt as native web wrappers around the GX Store.
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "GX Mod Downloader 0.2.1 Alpha" --prerelease --notes-file - <<'NOTES'
+          Startup hotfix for the native GX Store wrappers.
 
-          - Android: immersive WebView, native CRX/ZIP downloads, 56 selectable icon/theme presets.
-          - Windows: WinForms + WebView2, setup EXE and portable build, Opera GX companion launch.
-          - Linux: GTK + WebKitGTK, AppImage and DEB, Opera GX companion launch.
+          - Android now starts on a native recovery screen before creating WebView.
+          - WebView/provider failures display a diagnostic and Retry button instead of immediately closing.
+          - WebView renderer exits are recovered without killing the activity.
+          - Android remains immersive and retains all 56 selectable icon/theme presets.
+          - Windows and Linux package metadata is synchronized to 0.2.1.
           - Downloads are archives only; the app never installs or activates GX mods.
           NOTES
           else
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "GX Mod Downloader 0.2.0 Alpha" --prerelease --notes-file - <<'NOTES'
-          Rebuilt as native web wrappers around the GX Store.
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "GX Mod Downloader 0.2.1 Alpha" --prerelease --notes-file - <<'NOTES'
+          Startup hotfix for the native GX Store wrappers.
 
-          - Android: immersive WebView, native CRX/ZIP downloads, 56 selectable icon/theme presets.
-          - Windows: WinForms + WebView2, setup EXE and portable build, Opera GX companion launch.
-          - Linux: GTK + WebKitGTK, AppImage and DEB, Opera GX companion launch.
+          - Android now starts on a native recovery screen before creating WebView.
+          - WebView/provider failures display a diagnostic and Retry button instead of immediately closing.
+          - WebView renderer exits are recovered without killing the activity.
+          - Android remains immersive and retains all 56 selectable icon/theme presets.
+          - Windows and Linux package metadata is synchronized to 0.2.1.
           - Downloads are archives only; the app never installs or activates GX mods.
           NOTES
           fi
