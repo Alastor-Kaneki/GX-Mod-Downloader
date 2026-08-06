@@ -1,0 +1,69 @@
+name: Android accelerated runtime smoke test
+
+on:
+  push:
+    branches: [runtime-macos-test]
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: macos-13
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reconstruct source and icon pack
+        run: |
+          python3 scripts/reconstruct-source.py
+          python3 -m pip install --disable-pip-version-check --user pillow
+          python3 scripts/reconstruct-icon-pack.py
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Build APK
+        run: gradle -p android --stacktrace --no-daemon :app:assembleDebug
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          arch: x86_64
+          target: google_apis
+          profile: pixel_2
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -euxo pipefail
+            adb logcat -c
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell cmd package resolve-activity --brief -a android.intent.action.MAIN -c android.intent.category.LAUNCHER dev.alastorkaneki.gxmods | tee resolved-launcher.txt
+            grep -F 'dev.alastorkaneki.gxmods.icon.basic_classic' resolved-launcher.txt
+            adb shell am start -W -n dev.alastorkaneki.gxmods/dev.alastorkaneki.gxmods.icon.basic_classic | tee activity-start.txt
+            sleep 15
+            adb shell pidof dev.alastorkaneki.gxmods | tee app-pid.txt
+            test -s app-pid.txt
+            adb shell dumpsys activity activities | grep -A 8 -B 3 dev.alastorkaneki.gxmods > activity-state.txt || true
+            adb shell uiautomator dump /sdcard/window.xml || true
+            adb pull /sdcard/window.xml window.xml || true
+            adb exec-out screencap -p > startup-screen.png || true
+            adb logcat -d -v threadtime > android-runtime-logcat.txt
+            if grep -E 'FATAL EXCEPTION|AndroidRuntime.*Process: dev.alastorkaneki.gxmods' android-runtime-logcat.txt; then
+              exit 1
+            fi
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-runtime-evidence
+          path: |
+            resolved-launcher.txt
+            activity-start.txt
+            app-pid.txt
+            activity-state.txt
+            window.xml
+            startup-screen.png
+            android-runtime-logcat.txt
+          if-no-files-found: warn
