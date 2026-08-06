@@ -1,12 +1,16 @@
 .gradle/
-.idea/
 **/build/
-local.properties
+**/bin/
+**/obj/
+.idea/
+.vscode/
 *.iml
-.DS_Store
-captures/
-.externalNativeBuild/
-.cxx/
-*.jks
 *.keystore
-keystore.properties
+*.jks
+*.pfx
+*.p12
+AppDir/
+dist/
+
+# Reconstructed from committed source chunks
+assets/gx-icon-pack.zip

@@ -1,106 +1,36 @@
 # GX Mod Downloader
 
-A native, unofficial Opera GX Mods browser and raw-package downloader for **Android, Windows, and Linux**.
+A native wrapper around the public GX Store that injects **GX Mod Archive Downloader**. It saves either the original `mod.crx` package or an editable raw ZIP payload. It never installs, activates, or executes downloaded mod code.
 
-The app uses one Kotlin Multiplatform + Compose Multiplatform codebase. It talks directly to the GX Store catalog service, presents a GX-inspired native interface, and downloads the original `.crx` package without installing or executing the mod.
+## Native shells
 
-> This project is not affiliated with or endorsed by Opera. Opera, Opera GX, and GX Mods are trademarks of their respective owners.
+- **Android:** Kotlin + Android WebView, fully immersive/edge-to-edge, native downloads, CRX-to-ZIP extraction, clipboard bridge, Opera GX handoff, and 56 selectable launcher icon/theme presets.
+- **Windows:** C# WinForms + WebView2, native downloads and ZIP extraction, dynamic window icons, and best-effort Opera GX launch with the bundled companion extension.
+- **Linux:** GTK3 + WebKitGTK, native downloads and ZIP extraction, desktop icon theme updates, and best-effort Opera GX launch.
 
-## Features
+## Themes and icons
 
-- Native adaptive interface for phones, tablets, Windows, and Linux
-- Server-side GX Mods search
-- Browse by Desktop or Mobile compatibility
-- Component filters for wallpapers, themes, music, sounds, web modding, shaders, fonts, and icons
-- Sort by most downloaded, recently updated, newest, or title
-- Mod details with covers, creator, version, package size, download count, dates, platforms, and components
-- Raw `.crx` downloads from official GX content hosts only
-- Redirect validation before download
-- CRX2/CRX3 header and ZIP-payload validation on desktop
-- Android downloads through the system Download Manager
-- Session download history
-- True-black GX-inspired styling and immersive Android system bars
-- No WebView, Electron, automatic installation, or execution of mod content
+The included GX icon pack provides 56 presets across Basic, Holo, Holo GX, and Neon families. Selecting a preset changes the injected UI theme. Android also switches the launcher icon through activity aliases. Linux updates the per-user desktop icon. Windows updates the running window/taskbar icon.
 
-## Security model
+## Security boundaries
 
-GX Mod Downloader treats every package as untrusted data.
+Only HTTPS package URLs under these GX CDN hosts are accepted:
 
-- Package URLs must use HTTPS.
-- The host must be one of the known GX content hosts:
-  - `mods.store.gx.me`
-  - `play.gxc.gg`
-  - `play.gx.games`
-- The final path must end in `/mod.crx`.
-- Redirects are followed only while they remain valid official GX package URLs.
-- Desktop downloads are checked for the `Cr24` header, supported CRX version, a bounded header, and a ZIP payload.
-- CSS, shaders, scripts, or other package content are never rendered or executed by this app.
-- The app never silently installs or activates a mod.
+- `mods.store.gx.me`
+- `play.gxc.gg`
 
-The GX Store API is not documented as a stable public developer API, so its adapter is intentionally isolated in `GxStoreApi.kt` for future maintenance.
+The path must start with `/mods/`. Redirect targets are validated again. Downloads are capped at 512 MiB. CRX2 and CRX3 headers are parsed and the ZIP signature is verified before raw export.
 
-## Project structure
+## Source bundle
 
-```text
-composeApp/src/commonMain     Shared API, models, state, security, and Compose UI
-composeApp/src/androidMain    Android activity, immersive mode, images, downloads
-composeApp/src/desktopMain    Windows/Linux entry point, images, filesystem downloads
-composeApp/src/commonTest     GX URL, CRX header, and API-schema tests
-.github/workflows/build.yml   Android, Windows, and Linux CI packages
-```
+The repository keeps the full cross-platform source in a compact bundle, including an optimized sprite derived from the supplied 56-icon theme pack. Run `python scripts/reconstruct-source.py` after cloning to expand the Android, Windows, Linux, shared userscript, and Opera-extension sources. GitHub Actions performs this automatically before every build.
 
 ## Build
 
-Requirements:
+GitHub Actions produces:
 
-- JDK 21
-- Gradle 8.14.3
-- Android SDK 36 for Android builds
-- `rpm` tooling for RPM packaging
-- Windows packaging tools supported by `jpackage` for MSI/EXE builds
+- Android debug-signed APK
+- Windows x64 setup EXE and portable ZIP
+- Linux x86_64 AppImage and DEB
 
-### Android debug APK
-
-```bash
-gradle :composeApp:assembleDebug
-```
-
-Output:
-
-```text
-composeApp/build/outputs/apk/debug/
-```
-
-### Run desktop app
-
-```bash
-gradle :composeApp:run
-```
-
-### Linux packages
-
-```bash
-gradle :composeApp:packageDeb :composeApp:packageRpm
-```
-
-### Windows installers
-
-Run on Windows:
-
-```powershell
-gradle :composeApp:packageMsi :composeApp:packageExe
-```
-
-GitHub Actions builds all supported packages on every push to `main`. The Android CI artifact is debug-signed. A permanent private release key must be stored in GitHub Actions secrets before publishing a signed production APK; private signing material must never be committed.
-
-## Data flow
-
-1. Browse requests call `https://api.gx.me/store/v3/mods` with pagination, search, sorting, and tag filters.
-2. Details call `https://api.gx.me/store/v3/mods/{shortId}`.
-3. The returned versioned `contentUrl` is converted from `/contents` to `/mod.crx`.
-4. The package URL is validated against the official-host allowlist.
-5. The platform downloader saves the untouched raw package.
-
-## License
-
-Apache License 2.0. See [LICENSE](LICENSE).
+The Android build intentionally uses debug signing until a permanent private release key is configured outside the public repository.
