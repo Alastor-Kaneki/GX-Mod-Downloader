@@ -29,16 +29,25 @@ jobs:
           gradle-version: '8.9'
       - name: Compile hotfix APK
         run: gradle -p android --stacktrace --no-daemon :app:assembleDebug
-      - name: Verify APK structure
+      - name: Verify APK structure and launcher alias
         run: |
+          set -euxo pipefail
           APK=android/app/build/outputs/apk/debug/app-debug.apk
+          AAPT="$ANDROID_HOME/build-tools/35.0.0/aapt"
           test -s "$APK"
-          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$APK" | tee apk-badging.txt
+
+          "$AAPT" dump badging "$APK" | tee apk-badging.txt
           grep -F "package: name='dev.alastorkaneki.gxmods' versionCode='3' versionName='0.2.1-alpha'" apk-badging.txt
-          grep -F "launchable-activity: name='dev.alastorkaneki.gxmods.icon.basic_classic'" apk-badging.txt
+
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml | tee manifest-tree.txt
+          grep -F 'A: android:name(0x01010003)="dev.alastorkaneki.gxmods.icon.basic_classic"' manifest-tree.txt
+          grep -F 'A: android:targetActivity(0x01010202)="dev.alastorkaneki.gxmods.MainActivity"' manifest-tree.txt
+          grep -F 'A: android:name(0x01010003)="android.intent.action.MAIN"' manifest-tree.txt
+          grep -F 'A: android:name(0x01010003)="android.intent.category.LAUNCHER"' manifest-tree.txt
+
           mkdir -p dist
           cp "$APK" dist/GX-Mod-Downloader-0.2.1-alpha-android-debug.apk
-          sha256sum dist/*
+          sha256sum dist/* | tee dist/SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
           name: android-startup-hotfix
