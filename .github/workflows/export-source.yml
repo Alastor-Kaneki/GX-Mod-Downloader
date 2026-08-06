@@ -1,0 +1,25 @@
+name: Export reconstructed source
+
+on:
+  push:
+    branches: [debug-runtime]
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python scripts/reconstruct-source.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reconstructed-source
+          path: |
+            android
+            shared
+            windows
+            linux
+            scripts
+          if-no-files-found: error
