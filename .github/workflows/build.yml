@@ -116,7 +116,7 @@ jobs:
             libsoup-3.0-dev libarchive-dev desktop-file-utils \
             patchelf squashfs-tools libfuse2 wget unzip
       - name: Build native Linux packages
-        run: scripts/package-appimage.sh
+        run: bash scripts/package-appimage.sh
       - name: Build AppImage
         run: |
           cd dist
